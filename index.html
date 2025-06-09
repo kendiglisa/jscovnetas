@@ -135,10 +135,16 @@
             const messages = [];
             let lineCount = 0;
 
-            // Support multiple date formats:
-            // [dd/mm/yy, hh:mm:ss] Sender: Message (Android)
-            // [mm/dd/yy, hh:mm:ss AM/PM] Sender: Message (iOS)
+            // Define patterns to exclude (like the encryption notice)
+            const excludePatterns = [
+                "Messages and calls are end-to-end encrypted",
+                "Only people in this chat can read"
+            ];
+
+            // Support date formats with special space character ( ) before am/pm
             const dateFormats = [
+                /^(\d{1,2}\/\d{1,2}\/\d{2}), (\d{1,2}:\d{2}\u202f[ap]m) - ([^:]+): (.+)/, // New format with special space
+                /^(\d{1,2}\/\d{1,2}\/\d{2}), (\d{1,2}:\d{2}:\d{2}\u202f[AP]M) - ([^:]+): (.+)/, // With seconds
                 /^\[(\d{1,2}\/\d{1,2}\/\d{2}), (\d{1,2}:\d{2}:\d{2})\] ([^:]+): (.+)/, // Android
                 /^\[(\d{1,2}\/\d{1,2}\/\d{2}), (\d{1,2}:\d{2}:\d{2} [AP]M)\] ([^:]+): (.+)/ // iOS
             ];
@@ -146,6 +152,11 @@
             for (const line of lines) {
                 lineCount++;
                 if (!line.trim()) continue;
+
+                // Skip lines with exclude patterns
+                if (excludePatterns.some(pattern => line.includes(pattern))) {
+                    continue;
+                }
 
                 let match = null;
                 for (const regex of dateFormats) {
