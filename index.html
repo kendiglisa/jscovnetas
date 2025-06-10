@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="robots" content="noindex, nofollow">
+    <title>JSON File Archive</title>
+    <style>
+        /* [Keep all your existing styles] */
+    </style>
+</head>
+<body>
+    <h1>Automated JSON Archive</h1>
+    <div id="files">
+        <p class="loading">Scanning repository for JSON files...</p>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // CONFIGURATION
+            const config = {
+                repo: 'kendiglisa/adfasdfasfs',
+                branch: 'main'
+            };
+            
+            const container = document.getElementById('files');
+            
+            // 1. First get the list of files
+            fetch(`https://api.github.com/repos/${config.repo}/contents?ref=${config.branch}`)
+                .then(response => {
+                    if (!response.ok) {
+                        return fetch(`https://corsproxy.io/?${encodeURIComponent(
+                            `https://api.github.com/repos/${config.repo}/contents?ref=${config.branch}`
+                        )}`);
+                    }
+                    return response;
+                })
+                .then(response => {
+                    if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
+                    return response.json();
+                })
+                .then(files => {
+                    // Filter JSON files
+                    const jsonFiles = files.filter(file => 
+                        file.type === 'file' && 
+                        file.name.endsWith('.json')
+                    );
+                    
+                    if (jsonFiles.length === 0) {
+                        throw new Error('No JSON files found in root directory');
+                    }
+                    
+                    // Use the file's own modified date (more reliable)
+                    return jsonFiles.map(file => ({
+                        filename: file.name,
+                        download_url: file.download_url,
+                        last_modified: file.last_modified ? new Date(file.last_modified) : new Date()
+                    })).sort((a, b) => b.last_modified - a.last_modified);
+                })
+                .then(sortedFiles => {
+                    container.innerHTML = `<p class="loading">Loading ${sortedFiles.length} JSON files...</p>`;
+                    
+                    // Load all JSON files
+                    return Promise.all(
+                        sortedFiles.map(file => 
+                            fetch(file.download_url)
+                                .then(res => res.text())
+                                .then(content => ({
+                                    filename: file.filename,
+                                    content,
+                                    last_modified: file.last_modified,
+                                    isJson: true
+                                }))
+                                .catch(e => ({
+                                    filename: file.filename,
+                                    error: e.message
+                                }))
+                        )
+                    );
+                })
+                .then(results => {
+                    container.innerHTML = '';
+                    
+                    results.forEach((result, index) => {
+                        const fileDiv = document.createElement('div');
+                        fileDiv.className = 'file-container';
+                        
+                        const title = document.createElement('h3');
+                        title.textContent = result.filename;
+                        fileDiv.appendChild(title);
+                        
+                        if (result.last_modified) {
+                            const meta = document.createElement('div');
+                            meta.className = 'file-meta';
+                            meta.textContent = `Last updated: ${result.last_modified.toLocaleString()}`;
+                            fileDiv.appendChild(meta);
+                        }
+                        
+                        if (result.error) {
+                            const errorDiv = document.createElement('div');
+                            errorDiv.className = 'error';
+                            errorDiv.textContent = `Error: ${result.error}`;
+                            fileDiv.appendChild(errorDiv);
+                        } else {
+                            try {
+                                const jsonData = JSON.parse(result.content);
+                                if (jsonData.conversations) {
+                                    jsonData.conversations.forEach(conversation => {
+                                        const convDiv = document.createElement('div');
+                                        convDiv.className = 'json-chat';
+                                        
+                                        if (conversation.topic || conversation.date) {
+                                            const convTitle = document.createElement('h4');
+                                            convTitle.textContent = `${conversation.topic || 'Conversation'} • ${conversation.date || 'No date'}`;
+                                            convDiv.appendChild(convTitle);
+                                        }
+                                        
+                                        if (conversation.messages) {
+                                            conversation.messages.forEach(message => {
+                                                const msgDiv = document.createElement('div');
+                                                msgDiv.className = message.role;
+                                                msgDiv.innerHTML = `<strong>${message.role}:</strong> ${message.content}`;
+                                                convDiv.appendChild(msgDiv);
+                                            });
+                                        }
+                                        
+                                        fileDiv.appendChild(convDiv);
+                                    });
+                                } else {
+                                    const pre = document.createElement('pre');
+                                    pre.textContent = JSON.stringify(jsonData, null, 2);
+                                    fileDiv.appendChild(pre);
+                                }
+                            } catch (e) {
+                                const errorDiv = document.createElement('div');
+                                errorDiv.className = 'error';
+                                errorDiv.textContent = `Failed to parse JSON: ${e.message}`;
+                                fileDiv.appendChild(errorDiv);
+                                
+                                const pre = document.createElement('pre');
+                                pre.textContent = result.content;
+                                fileDiv.appendChild(pre);
+                            }
+                        }
+                        
+                        container.appendChild(fileDiv);
+                        
+                        if (index < results.length - 1) {
+                            const separator = document.createElement('hr');
+                            separator.className = 'file-separator';
+                            container.appendChild(separator);
+                        }
+                    });
+                })
+                .catch(error => {
+                    showError('Failed to load JSON files', error.message);
+                });
+            
+            function showError(message, details = '') {
+                container.innerHTML = `
+                    <div class="error">
+                        <p><strong>Error:</strong> ${message}</p>
+                        ${details ? `<p>${details}</p>` : ''}
+                        <p>Verify that:</p>
+                        <ul>
+                            <li>Your repository is public</li>
+                            <li>JSON files exist in the root directory</li>
+                            <li>Files have .json extension</li>
+                        </ul>
+                        <p>Try accessing a file directly:<br>
+                        <a href="https://raw.githubusercontent.com/${config.repo}/${config.branch}/waarchive.json" target="_blank">
+                            https://raw.githubusercontent.com/${config.repo}/${config.branch}/waarchive.json
+                        </a></p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+</body>
+</html>

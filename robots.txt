@@ -1,0 +1,30 @@
+User-agent: *
+Disallow: /
+
+# Block specific bots (redundant but extra protection)
+User-agent: Googlebot
+Disallow: /
+User-agent: Bingbot
+Disallow: /
+User-agent: YandexBot
+Disallow: /
+User-agent: DuckDuckBot
+Disallow: /
+User-agent: Baiduspider
+Disallow: /
+User-agent: archive.org_bot
+Disallow: /
+
+# Block AI scrapers (ChatGPT, etc.)
+User-agent: GPTBot
+Disallow: /
+User-agent: Anthropic-ai
+Disallow: /
+
+# Block Wayback Machine
+User-agent: ia_archiver
+Disallow: /
+
+# Block all unknown future bots
+User-agent: *
+Disallow: /
