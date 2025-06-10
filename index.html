@@ -2,31 +2,77 @@
 <html>
 <head>
     <meta name="robots" content="noindex, nofollow">
-    <title>JSON File Archive</title>
+    <title>TXT File Archive</title>
     <style>
-        /* [Keep all your existing styles] */
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .file-container {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+        .error {
+            color: #cc0000;
+            padding: 15px;
+            border: 1px solid #ffcccc;
+            background-color: #ffeeee;
+        }
+        .loading {
+            color: #666;
+            font-style: italic;
+        }
+        pre {
+            white-space: pre-wrap;
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 3px;
+        }
+        .file-separator {
+            border: 0;
+            height: 1px;
+            background: #ccc;
+            margin: 20px 0;
+        }
+        .file-meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
-    <h1>Automated JSON Archive</h1>
+    <h1>TXT File Archive</h1>
     <div id="files">
-        <p class="loading">Scanning repository for JSON files...</p>
+        <p class="loading">Scanning repository for TXT files...</p>
     </div>
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             // CONFIGURATION
             const config = {
-                repo: 'kendiglisa/adfasdfasfs',
-                branch: 'main'
+                repo: 'kendiglisa/adfasdfasfs',  // Format: username/repository
+                branch: 'main'                   // Branch name (main, master, etc.)
             };
             
             const container = document.getElementById('files');
             
-            // 1. First get the list of files
+            // 1. Get list of files from GitHub
             fetch(`https://api.github.com/repos/${config.repo}/contents?ref=${config.branch}`)
                 .then(response => {
                     if (!response.ok) {
+                        // Fallback to CORS proxy if needed
                         return fetch(`https://corsproxy.io/?${encodeURIComponent(
                             `https://api.github.com/repos/${config.repo}/contents?ref=${config.branch}`
                         )}`);
@@ -38,39 +84,34 @@
                     return response.json();
                 })
                 .then(files => {
-                    // Filter JSON files
-                    const jsonFiles = files.filter(file => 
+                    // Filter for TXT files in root directory
+                    const txtFiles = files.filter(file => 
                         file.type === 'file' && 
-                        file.name.endsWith('.json')
+                        file.name.endsWith('.txt')
                     );
                     
-                    if (jsonFiles.length === 0) {
-                        throw new Error('No JSON files found in root directory');
+                    if (txtFiles.length === 0) {
+                        throw new Error('No TXT files found in root directory');
                     }
                     
-                    // Use the file's own modified date (more reliable)
-                    return jsonFiles.map(file => ({
-                        filename: file.name,
-                        download_url: file.download_url,
-                        last_modified: file.last_modified ? new Date(file.last_modified) : new Date()
-                    })).sort((a, b) => b.last_modified - a.last_modified);
+                    // Sort by filename (alphabetical)
+                    return txtFiles.sort((a, b) => a.name.localeCompare(b.name));
                 })
                 .then(sortedFiles => {
-                    container.innerHTML = `<p class="loading">Loading ${sortedFiles.length} JSON files...</p>`;
+                    container.innerHTML = `<p class="loading">Loading ${sortedFiles.length} TXT files...</p>`;
                     
-                    // Load all JSON files
+                    // Load all TXT files
                     return Promise.all(
                         sortedFiles.map(file => 
                             fetch(file.download_url)
                                 .then(res => res.text())
                                 .then(content => ({
-                                    filename: file.filename,
+                                    filename: file.name,
                                     content,
-                                    last_modified: file.last_modified,
-                                    isJson: true
+                                    last_modified: file.last_modified ? new Date(file.last_modified) : null
                                 }))
                                 .catch(e => ({
-                                    filename: file.filename,
+                                    filename: file.name,
                                     error: e.message
                                 }))
                         )
@@ -100,49 +141,14 @@
                             errorDiv.textContent = `Error: ${result.error}`;
                             fileDiv.appendChild(errorDiv);
                         } else {
-                            try {
-                                const jsonData = JSON.parse(result.content);
-                                if (jsonData.conversations) {
-                                    jsonData.conversations.forEach(conversation => {
-                                        const convDiv = document.createElement('div');
-                                        convDiv.className = 'json-chat';
-                                        
-                                        if (conversation.topic || conversation.date) {
-                                            const convTitle = document.createElement('h4');
-                                            convTitle.textContent = `${conversation.topic || 'Conversation'} • ${conversation.date || 'No date'}`;
-                                            convDiv.appendChild(convTitle);
-                                        }
-                                        
-                                        if (conversation.messages) {
-                                            conversation.messages.forEach(message => {
-                                                const msgDiv = document.createElement('div');
-                                                msgDiv.className = message.role;
-                                                msgDiv.innerHTML = `<strong>${message.role}:</strong> ${message.content}`;
-                                                convDiv.appendChild(msgDiv);
-                                            });
-                                        }
-                                        
-                                        fileDiv.appendChild(convDiv);
-                                    });
-                                } else {
-                                    const pre = document.createElement('pre');
-                                    pre.textContent = JSON.stringify(jsonData, null, 2);
-                                    fileDiv.appendChild(pre);
-                                }
-                            } catch (e) {
-                                const errorDiv = document.createElement('div');
-                                errorDiv.className = 'error';
-                                errorDiv.textContent = `Failed to parse JSON: ${e.message}`;
-                                fileDiv.appendChild(errorDiv);
-                                
-                                const pre = document.createElement('pre');
-                                pre.textContent = result.content;
-                                fileDiv.appendChild(pre);
-                            }
+                            const pre = document.createElement('pre');
+                            pre.textContent = result.content;
+                            fileDiv.appendChild(pre);
                         }
                         
                         container.appendChild(fileDiv);
                         
+                        // Add separator between files
                         if (index < results.length - 1) {
                             const separator = document.createElement('hr');
                             separator.className = 'file-separator';
@@ -151,7 +157,7 @@
                     });
                 })
                 .catch(error => {
-                    showError('Failed to load JSON files', error.message);
+                    showError('Failed to load TXT files', error.message);
                 });
             
             function showError(message, details = '') {
@@ -162,12 +168,12 @@
                         <p>Verify that:</p>
                         <ul>
                             <li>Your repository is public</li>
-                            <li>JSON files exist in the root directory</li>
-                            <li>Files have .json extension</li>
+                            <li>TXT files exist in the root directory</li>
+                            <li>Files have .txt extension</li>
                         </ul>
                         <p>Try accessing a file directly:<br>
-                        <a href="https://raw.githubusercontent.com/${config.repo}/${config.branch}/waarchive.json" target="_blank">
-                            https://raw.githubusercontent.com/${config.repo}/${config.branch}/waarchive.json
+                        <a href="https://raw.githubusercontent.com/${config.repo}/${config.branch}/example.txt" target="_blank">
+                            https://raw.githubusercontent.com/${config.repo}/${config.branch}/example.txt
                         </a></p>
                     </div>
                 `;
