@@ -11,54 +11,39 @@
         document.addEventListener('DOMContentLoaded', function() {
             // CONFIGURATION
             const config = {
-                repo: 'kendiglisa/jscovnetas',  // Format: username/repository
-                branch: 'main'                   // Branch name (main, master, etc.)
+                repo: 'kendiglisa/jscovnetas',  // Updated to your new repository
+                branch: 'main'                   // Branch name
             };
             
             const container = document.getElementById('files');
             
-            // Recursive function to get all files in repo
-            function getAllFiles(url) {
-                return fetch(url)
-                    .then(response => {
-                        if (!response.ok) {
-                            // Fallback to CORS proxy if needed
-                            return fetch(`https://corsproxy.io/?${encodeURIComponent(url)}`);
-                        }
-                        return response;
-                    })
-                    .then(response => {
-                        if (!response.ok) throw new Error(`GitHub API error: ${response.status}`);
-                        return response.json();
-                    })
-                    .then(items => {
-                        const files = items.filter(item => item.type === 'file' && item.name.endsWith('.txt'));
-                        const folders = items.filter(item => item.type === 'dir');
-                        
-                        return Promise.all([
-                            Promise.resolve(files),
-                            ...folders.map(folder => getAllFiles(folder.url))
-                        ]).then(results => {
-                            const allFiles = [];
-                            results.forEach(result => {
-                                if (Array.isArray(result)) {
-                                    allFiles.push(...result);
-                                }
-                            });
-                            return allFiles;
-                        });
-                    });
-            }
-            
-            // Get all files recursively
-            getAllFiles(`https://api.github.com/repos/${config.repo}/git/trees/${config.branch}?recursive=1`)
-                .then(files => {
-                    if (files.length === 0) {
+            // Get all files recursively using GitHub API
+            fetch(`https://api.github.com/repos/${config.repo}/git/trees/${config.branch}?recursive=1`)
+                .then(response => {
+                    if (!response.ok) {
+                        // Fallback to CORS proxy if needed
+                        return fetch(`https://corsproxy.io/?${encodeURIComponent(
+                            `https://api.github.com/repos/${config.repo}/git/trees/${config.branch}?recursive=1`
+                        )}`);
+                    }
+                    return response;
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.tree) throw new Error('No files found in repository');
+                    
+                    // Filter for .txt files
+                    const txtFiles = data.tree.filter(item => 
+                        item.type === 'blob' && 
+                        item.path.toLowerCase().endsWith('.txt')
+                    );
+                    
+                    if (txtFiles.length === 0) {
                         throw new Error('No TXT files found in repository');
                     }
                     
-                    // Sort by filename (alphabetical)
-                    return files.sort((a, b) => a.path.localeCompare(b.path));
+                    // Sort by path
+                    return txtFiles.sort((a, b) => a.path.localeCompare(b.path));
                 })
                 .then(sortedFiles => {
                     container.textContent = `Loading ${sortedFiles.length} TXT files...`;
@@ -67,7 +52,10 @@
                     return Promise.all(
                         sortedFiles.map(file => 
                             fetch(`https://raw.githubusercontent.com/${config.repo}/${config.branch}/${file.path}`)
-                                .then(res => res.text())
+                                .then(res => {
+                                    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+                                    return res.text();
+                                })
                                 .then(content => ({
                                     filename: file.path,
                                     content
